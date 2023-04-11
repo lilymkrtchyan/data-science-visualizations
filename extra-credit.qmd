@@ -1,8 +1,8 @@
 ---
 title: "Extra credit"
 subtitle: "INFO 2950 - Spring 2023"
-author: "Your name"
-date: "Your date"
+author: "Lili Mkrtchyan"
+date: "4/11"
 format: pdf
 editor: visual
 ---
@@ -15,6 +15,101 @@ Load packages and data:
 #| label: load-packages
 
 library(tidyverse)
+library(stringr)
+library(survival)
+
+survivalists <- readr::read_csv('https://raw.githubusercontent.com/rfordatascience/tidytuesday/master/data/2023/2023-01-24/survivalists.csv')
+loadouts <- readr::read_csv('https://raw.githubusercontent.com/rfordatascience/tidytuesday/master/data/2023/2023-01-24/loadouts.csv')
+episodes <- readr::read_csv('https://raw.githubusercontent.com/rfordatascience/tidytuesday/master/data/2023/2023-01-24/episodes.csv')
+seasons <- readr::read_csv('https://raw.githubusercontent.com/rfordatascience/tidytuesday/master/data/2023/2023-01-24/seasons.csv')
 ```
 
 ## Extra credit
+
+Research questions:
+
+Do loadouts have a long term effect on the determination of the winner?
+
+How safe is Survivor? How many people get medically evacuate?
+
+What factors play role in winning/succeeding in the show? Gender, profession, loadouts, age?
+
+```{r}
+#| label: data-cleaning
+
+library(viridis)
+
+survivalists_clean <- survivalists |>
+  select(season, name, age, gender, result, 
+         days_lasted, medically_evacuated,
+         reason_category, profession)
+
+exis_professions <- survivalists_clean |>
+  select(profession) |>
+  group_by(profession) |>
+  summarize()
+
+# Diving the professions into categories
+wilderness_survival <- exis_professions |>
+  filter(str_detect(profession, 'Survival|Wild|Primitive|Skil|Outdoor')) |>
+  mutate(category = 'Wilderness/Survival')
+
+business <- exis_professions |>
+  filter(str_detect(profession, 'Manager|Accountant|Commercial')) |>
+  mutate(category = 'Business')
+
+construction_eng <- exis_professions |>
+  filter(str_detect(profession, 'Engineer|Construct|Electr|Build|Operat|Make')) |>
+  mutate(category = 'Construction/Engineering')
+
+sci_nature <- exis_professions |>
+  filter(str_detect(profession, 'Nature|Sci|Bio|Env|Agr|Anthro')) |>
+  mutate(category = 'Science/Nature')
+
+military_law <- exis_professions |>
+  filter(str_detect(profession, 'US|Army|Navy|Enforcement')) |>
+  mutate(category ='Military/Law')
+
+health <- exis_professions |>
+  filter(str_detect(profession, 'Herbalist|Physician|Psychotherapist')) |>
+  mutate(category = 'Health/Fitness')
+
+media <- exis_professions |>
+  filter(str_detect(profession, 'Photo|Writer|Media|Video|Author')) |>
+  mutate(category = 'Media')
+
+# Creating a unified dataframe with the professions and respective categories
+prof_categories <- rbind(wilderness_survival, 
+                         business, construction_eng, sci_nature, 
+                         military_law, health, media)
+
+# Delete the miscategorized rows
+prof_categories <- prof_categories[-31,]
+
+# Add professions that were left out from defined categories
+all_prof_categories <- merge(exis_professions, prof_categories, all.x = TRUE)
+all_prof_categories[is.na(all_prof_categories)] <- 'Other'
+
+# Merge the two data frames to include profession categories
+survivalists_clean <- merge(survivalists_clean, prof_categories, by = "profession")
+
+# Merge original data frame to include the number of participants that have a certain profession per category
+temp_graph <- survivalists_clean |>
+  select(result, category) |>
+  group_by(category, result) |>
+  summarize(count = n())
+
+ggplot(temp_graph, aes(x = as.character(result), y = count, fill = category)) +
+  geom_col(position = "dodge") +
+  scale_fill_viridis(discrete = TRUE, option = "D")
+
+
+```
+
+```{r}
+#| label: kaplan-meier curve
+
+#ggplot(survivalists_clean, mapping = aes(x = days_lasted, y = count, colour = gender, fill = gender)) +
+ # geom_line()
+
+```
